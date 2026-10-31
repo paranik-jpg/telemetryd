@@ -1,0 +1,30 @@
+# Build directories
+build/
+bin/
+lib/
+
+# CMake temporary files and caches
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+compile_commands.json
+
+# Object files & archives
+*.o
+*.a
+*.so
+*.dylib
+
+# Core dumps & logs
+core
+*.log
+
+# IDE & Editor configurations
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
