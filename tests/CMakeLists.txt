@@ -33,3 +33,26 @@ target_link_libraries(test_zero_alloc PRIVATE
 
 # Registers this executable with CTest
 add_test(NAME test_zero_alloc COMMAND test_zero_alloc)
+
+# ==============================================================================
+# CPU Collector Zero-Allocation Verification Test Target
+# ==============================================================================
+
+add_executable(test_cpu test_cpu.cpp)
+target_link_libraries(test_cpu PRIVATE
+    telemetry_test_support
+)
+
+add_test(NAME test_cpu COMMAND test_cpu)
+
+# ==============================================================================
+# Memory Collector Zero-Allocation Verification Test Target
+# ==============================================================================
+
+add_executable(test_mem test_mem.cpp)
+target_link_libraries(test_mem PRIVATE
+    telemetry_test_support
+)
+
+add_test(NAME test_mem COMMAND test_mem)
+
