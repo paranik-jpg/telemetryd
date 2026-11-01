@@ -16,37 +16,6 @@ A **Zero-Allocation Linux Host Telemetry Daemon in Modern C++17**, parsing direc
 
 ---
 
-## Current Status
-
-### Milestone 1: Framework Foundation
-- [x] Project scaffold and directory tree (`include/`, `src/`, `tests/`, `benchmarks/`).
-- [x] CMake 3.20+ build system with explicit configuration presets (`debug`, `release`, `asan`, `tsan`).
-- [x] Strict compiler warnings matrix and sanitizer presets.
-- [x] Linker discipline (`-pthread` and LTO/IPO support check).
-- [x] Global memory allocation interceptor (`tests/alloc_hook.hpp`, `tests/alloc_hook.cpp`).
-- [x] Scoped RAII surveillance guard (`AllocGuard`).
-- [x] Baseline zero-allocation utilities (`ScratchBuffer`, `trim_leading_whitespace`, `split_once`, `LineCursor`).
-- [x] Test harness validation (`test_zero_alloc` passing under standard Debug and ASan/UBSan presets).
-
-### Milestone 2: CPU & Memory Telemetry Core
-- [x] **CPU Collector (`CpuCollector`, `CpuJiffies`)**:
-  - Direct zero-copy `/proc/stat` parsing into pre-allocated 16 KiB member buffers.
-  - Multi-core tracking (up to `MAX_CORES = 64`) with safe upper-bound truncation.
-  - Delta utilization math: $\Delta\text{Active} / \Delta\text{Total} \times 100$ clamped to $[0.0, 100.0]$.
-  - Zero-delta and counter wrap-around guards preventing division-by-zero crashes.
-- [x] **Memory Collector (`MemCollector`, `MemSnapshot`)**:
-  - In-place key-value scanner for `/proc/meminfo` into pre-allocated 4 KiB member buffers.
-  - Fast static string matching with early exit upon saturating 10 target memory keys.
-  - Modern memory pressure math (`MemTotal - MemAvailable`) with seamless fallback to traditional buffers/cached calculations.
-  - Swap utilization tracking (`SwapTotal - SwapFree`).
-- [x] **Unit Testing & Sanitizer Verification**:
-  - `test_cpu`: 1,000 consecutive iterations under `AllocGuard` with 0 heap allocations, synthetic input validation, and core overflow tests.
-  - `test_mem`: 1,000 consecutive iterations under `AllocGuard` with 0 heap allocations and exact synthetic metric validation.
-  - Deterministic file descriptor closure verification (`fcntl(fd, F_GETFD) == -1 && errno == EBADF`).
-  - 100% test pass rate under AddressSanitizer and UndefinedBehaviorSanitizer presets with zero leaks.
-
----
-
 ## Building and Testing
 
 ### Prerequisites
