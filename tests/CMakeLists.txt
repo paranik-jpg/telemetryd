@@ -22,6 +22,12 @@ target_link_libraries(telemetry_test_support PUBLIC
     telemetryd_includes
 )
 
+# In test binaries, preserve assert() even under Release builds (-DNDEBUG)
+# so test assertions actively validate conditions and prevent -Wunused warnings.
+target_compile_options(telemetry_test_support PUBLIC
+    -UNDEBUG
+)
+
 # ==============================================================================
 # Zero-Allocation Verification Test Target
 # ==============================================================================
@@ -55,4 +61,16 @@ target_link_libraries(test_mem PRIVATE
 )
 
 add_test(NAME test_mem COMMAND test_mem)
+
+# ==============================================================================
+# TCP Collector Zero-Allocation Verification Test Target
+# ==============================================================================
+
+add_executable(test_tcp test_tcp.cpp)
+target_link_libraries(test_tcp PRIVATE
+    telemetry_test_support
+)
+
+add_test(NAME test_tcp COMMAND test_tcp)
+
 

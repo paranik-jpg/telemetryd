@@ -8,10 +8,11 @@ A **Zero-Allocation Linux Host Telemetry Daemon in Modern C++17**, parsing direc
 
 - **Zero Dynamic Allocations in Steady State**: Strict guarantee of zero heap allocations (`malloc`, `operator new`) during metric parsing and scraping cycles.
 - **Direct `/proc` Parsing**: Zero-copy parsing directly over cache-aligned fixed scratch buffers (`ScratchBuffer<N>`).
-- **Persistent File Descriptors**: Opens `/proc/stat` and `/proc/meminfo` once at startup with `O_RDONLY | O_CLOEXEC` and samples via atomic positional `pread(fd, ..., 0)` to eliminate VFS path walk and inode lookup overhead.
+- **Persistent File Descriptors**: Opens `/proc/stat`, `/proc/meminfo`, `/proc/net/tcp`, and `/proc/net/tcp6` once at startup with `O_RDONLY | O_CLOEXEC` to eliminate VFS path walk and inode lookup overhead.
+- **TCP Socket Streaming & Line Boundary Splicing**: Streams unbounded socket tables from `/proc/net/tcp` and `/proc/net/tcp6` in 64 KiB chunks with in-place line boundary splicing (`std::memmove`) to aggregate connection state histograms and kernel queue pressures with zero heap allocations.
 - **Fast Numeric Parsing (`std::from_chars`)**: In-place ASCII parsing without string allocations, regex, or locale mutex contention.
 - **Mechanical Allocation Enforcement**: Global C++ memory interceptors (`alloc_hook`) and an RAII `AllocGuard` harness that catches and aborts on any rogue heap allocations.
-- **Defensive Systems Engineering**: Strict compiler flags (`-Wall -Wextra -Wpedantic -Wconversion -Werror`), cache-line alignment (`alignas(64)`), core bounds truncation, and sanitizer validation (ASan, UBSan, TSan).
+- **Defensive Systems Engineering**: Strict compiler flags (`-Wall -Wextra -Wpedantic -Wconversion -Werror`), cache-line alignment (`alignas(64)`), core bounds truncation, oversized record guards, and sanitizer validation (ASan, UBSan, TSan).
 - **Link-Time Optimization (LTO)**: Interprocedural Optimization (IPO) enabled for release builds to permit cross-translation-unit inlining of hot parser routines.
 
 ---

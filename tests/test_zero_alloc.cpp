@@ -19,11 +19,16 @@ static void test_alloc_accounting() {
     const std::size_t initial_allocs = g_allocation_count.load(std::memory_order_relaxed);
     const std::size_t initial_deallocs = g_deallocation_count.load(std::memory_order_relaxed);
 
-    // Explicit heap allocation via dynamic array
-    int* ptr = new int[100];
-    assert(g_allocation_count.load(std::memory_order_relaxed) == initial_allocs + 1);
+    // Allocate dynamic heap memory using a simple std::vector
+    {
+        // Because vec(100, 42) actually writes numbers into memory:
+        // The compiler cannot say "this memory was unused"
+        std::vector<int> vec(100, 42);
+        // Verify vector constructor performed dynamic heap allocation
+        assert(g_allocation_count.load(std::memory_order_relaxed) == initial_allocs + 1);
+    } // vec exits scope and frees memory via vector destructor
 
-    delete[] ptr;
+    // Verify vector destructor performed deallocation
     assert(g_deallocation_count.load(std::memory_order_relaxed) == initial_deallocs + 1);
 
     std::cout << "  [PASS] test_alloc_accounting verified!" << std::endl;

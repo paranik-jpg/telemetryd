@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstdlib>
 
 // ==============================================================================
 // Global Memory Allocation Interceptor (Accounting Primitives)
@@ -53,9 +54,12 @@ struct AllocGuard {
     AllocGuard(AllocGuard&&) = delete;
     AllocGuard& operator=(AllocGuard&&) = delete;
 
-    // Verifies that strictly zero heap allocations occurred during this guard's lifetime
+    // Verifies that strictly zero heap allocations occurred during this guard's lifetime.
+    // Active in both Debug and Release builds (fails fast via std::abort if non-zero).
     void assert_zero_allocations() const noexcept {
         const std::size_t current_allocations = g_allocation_count.load(std::memory_order_relaxed);
-        assert((current_allocations - baseline_allocations) == 0);
+        if ((current_allocations - baseline_allocations) != 0) {
+            std::abort();
+        }
     }
 };
