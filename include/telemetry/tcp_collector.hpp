@@ -124,8 +124,7 @@ struct TcpSnapshot {
 // Parses a single line from /proc/net/tcp.
 // Avoids std::stringstream, sscanf, or regex. Relies strictly on pointer
 // arithmetic and std::from_chars with base-16.
-inline bool parse_tcp_line(std::string_view line,
-						   TcpSnapshot& snapshot) noexcept {
+inline bool parse_tcp_line(std::string_view line, TcpSnapshot& snapshot) noexcept {
 	if(line.empty()) {
 		return false;
 	}
@@ -244,8 +243,7 @@ inline bool parse_tcp_line(std::string_view line,
 }
 
 // Parses a multi-line buffer of /proc/net/tcp data line by line
-inline void parse_tcp_buffer(std::string_view buffer,
-							 TcpSnapshot& snapshot) noexcept {
+inline void parse_tcp_buffer(std::string_view buffer, TcpSnapshot& snapshot) noexcept {
 	LineCursor cursor(buffer);
 	std::string_view line;
 	while(cursor.next_line(line)) {
@@ -262,104 +260,14 @@ inline void parse_tcp_buffer(std::string_view buffer,
 // virtual text) using a fixed 64 KiB reusable buffer, chunked sequential reads,
 // and line boundary splicing across both IPv4 and IPv6 stacks.
 class TcpCollector {
-   public:
-	// Fixed buffer capacity: 64 KiB cache-aligned buffer held as member
-	// variable
-	static constexpr std::size_t BUFFER_SIZE = 65536;
-
-	// Constructor: Opens persistent descriptors to both IPv4 and IPv6 paths
-	// with O_RDONLY | O_CLOEXEC
-	explicit TcpCollector(const char* tcp_path = "/proc/net/tcp",
-						  const char* tcp6_path = "/proc/net/tcp6") {
-		m_fd_tcp = ::open(tcp_path, O_RDONLY | O_CLOEXEC);
-		if(m_fd_tcp < 0) {
-			throw std::system_error(
-				errno, std::generic_category(),
-				"TcpCollector: failed to open /proc/net/tcp");
-		}
-
-		m_fd_tcp6 = ::open(tcp6_path, O_RDONLY | O_CLOEXEC);
-		// Note: tcp6 may not exist on systems where IPv6 is disabled in the kernel
-	}
-
-	// Destructor: RAII lifecycle discipline, automatically closes descriptors
-	~TcpCollector() noexcept {
-		if(m_fd_tcp >= 0) {
-			::close(m_fd_tcp);
-			m_fd_tcp = -1;
-		}
-		if(m_fd_tcp6 >= 0) {
-			::close(m_fd_tcp6);
-			m_fd_tcp6 = -1;
-		}
-	}
-
-	// Non-copyable to prevent duplicate file descriptor ownership
-	TcpCollector(const TcpCollector&) = delete;
-	TcpCollector& operator=(const TcpCollector&) = delete;
-
-	// Movable: transfers file descriptor ownership cleanly
-	TcpCollector(TcpCollector&& other) noexcept
-		: m_read_buffer(other.m_read_buffer),
-		  m_snapshot(other.m_snapshot),
-		  m_fd_tcp(other.m_fd_tcp),
-		  m_fd_tcp6(other.m_fd_tcp6) {
-		other.m_fd_tcp = -1;
-		other.m_fd_tcp6 = -1;
-	}
-
-	TcpCollector& operator=(TcpCollector&& other) noexcept {
-		if(this != &other) {
-			if(m_fd_tcp >= 0) {
-				::close(m_fd_tcp);
-			}
-			if(m_fd_tcp6 >= 0) {
-				::close(m_fd_tcp6);
-			}
-			m_read_buffer = other.m_read_buffer;
-			m_snapshot = other.m_snapshot;
-			m_fd_tcp = other.m_fd_tcp;
-			m_fd_tcp6 = other.m_fd_tcp6;
-			other.m_fd_tcp = -1;
-			other.m_fd_tcp6 = -1;
-		}
-		return *this;
-	}
-
-	// sample():
-	// - Resets m_snapshot.
-	// - Samples IPv4 (/proc/net/tcp) via m_fd_tcp.
-	// - Samples IPv6 (/proc/net/tcp6) via m_fd_tcp6 and aggregates into m_snapshot.
-	bool sample() noexcept {
-		if(m_fd_tcp < 0 && m_fd_tcp6 < 0) {
-			return false;
-		}
-
-		m_snapshot.reset();
-
-		bool success = false;
-		if(m_fd_tcp >= 0) {
-			success = sample_stream(m_fd_tcp);
-		}
-		// Stream & parse IPv6 (/proc/net/tcp6) INTO THE SAME SNAPSHOT!
-		if(m_fd_tcp6 >= 0) {
-			const bool ok6 = sample_stream(m_fd_tcp6);
-			success = success || ok6;
-		}
-
-		return success;
-	}
-
-	// Convenience alias for sample()
-	bool collect() noexcept { return sample(); }
-
-	// Accessors: Non-allocating const getters returning references or scalar values
-	const TcpSnapshot& snapshot() const noexcept { return m_snapshot; }
-	int fd() const noexcept { return m_fd_tcp; }
-	int fd_tcp() const noexcept { return m_fd_tcp; }
-	int fd_tcp6() const noexcept { return m_fd_tcp6; }
-
    private:
+	// Fixed buffer capacity: 64 KiB cache-aligned buffer held as member variable
+	static constexpr std::size_t BUFFER_SIZE = 65536;
+	ScratchBuffer<BUFFER_SIZE> m_read_buffer{};
+	TcpSnapshot m_snapshot{};
+	int m_fd_tcp{-1};
+	int m_fd_tcp6{-1};
+
 	// Streams and parses socket metrics from a single descriptor (IPv4 or IPv6)
 	bool sample_stream(int fd) noexcept {
 		if(fd < 0) {
@@ -449,10 +357,95 @@ class TcpCollector {
 		return true;
 	}
 
-	ScratchBuffer<BUFFER_SIZE> m_read_buffer{};
-	TcpSnapshot m_snapshot{};
-	int m_fd_tcp{-1};
-	int m_fd_tcp6{-1};
+   public:
+	// Constructor: Opens persistent descriptors to both IPv4 and IPv6 paths
+	// with O_RDONLY | O_CLOEXEC
+	explicit TcpCollector(const char* tcp_path = "/proc/net/tcp", const char* tcp6_path = "/proc/net/tcp6") {
+		m_fd_tcp = ::open(tcp_path, O_RDONLY | O_CLOEXEC);
+		if(m_fd_tcp < 0) {
+			throw std::system_error(errno, std::generic_category(), "TcpCollector: failed to open /proc/net/tcp");
+		}
+
+		m_fd_tcp6 = ::open(tcp6_path, O_RDONLY | O_CLOEXEC);
+		// Note: tcp6 may not exist on systems where IPv6 is disabled in the kernel
+	}
+
+	// Destructor: RAII lifecycle discipline, automatically closes descriptors
+	~TcpCollector() noexcept {
+		if(m_fd_tcp >= 0) {
+			::close(m_fd_tcp);
+			m_fd_tcp = -1;
+		}
+		if(m_fd_tcp6 >= 0) {
+			::close(m_fd_tcp6);
+			m_fd_tcp6 = -1;
+		}
+	}
+
+	// Non-copyable to prevent duplicate file descriptor ownership
+	TcpCollector(const TcpCollector&) = delete;
+	TcpCollector& operator=(const TcpCollector&) = delete;
+
+	// Movable: transfers file descriptor ownership cleanly
+	TcpCollector(TcpCollector&& other) noexcept
+		: m_read_buffer(other.m_read_buffer),
+		  m_snapshot(other.m_snapshot),
+		  m_fd_tcp(other.m_fd_tcp),
+		  m_fd_tcp6(other.m_fd_tcp6) {
+		other.m_fd_tcp = -1;
+		other.m_fd_tcp6 = -1;
+	}
+
+	TcpCollector& operator=(TcpCollector&& other) noexcept {
+		if(this != &other) {
+			if(m_fd_tcp >= 0) {
+				::close(m_fd_tcp);
+			}
+			if(m_fd_tcp6 >= 0) {
+				::close(m_fd_tcp6);
+			}
+			m_read_buffer = other.m_read_buffer;
+			m_snapshot = other.m_snapshot;
+			m_fd_tcp = other.m_fd_tcp;
+			m_fd_tcp6 = other.m_fd_tcp6;
+			other.m_fd_tcp = -1;
+			other.m_fd_tcp6 = -1;
+		}
+		return *this;
+	}
+
+	// sample():
+	// - Resets m_snapshot.
+	// - Samples IPv4 (/proc/net/tcp) via m_fd_tcp.
+	// - Samples IPv6 (/proc/net/tcp6) via m_fd_tcp6 and aggregates into m_snapshot.
+	bool sample() noexcept {
+		if(m_fd_tcp < 0 && m_fd_tcp6 < 0) {
+			return false;
+		}
+
+		m_snapshot.reset();
+
+		bool success = false;
+		if(m_fd_tcp >= 0) {
+			success = sample_stream(m_fd_tcp);
+		}
+		// Stream & parse IPv6 (/proc/net/tcp6) INTO THE SAME SNAPSHOT!
+		if(m_fd_tcp6 >= 0) {
+			const bool ok6 = sample_stream(m_fd_tcp6);
+			success = success || ok6;
+		}
+
+		return success;
+	}
+
+	// Convenience alias for sample()
+	bool collect() noexcept { return sample(); }
+
+	// Accessors: Non-allocating const getters returning references or scalar values
+	const TcpSnapshot& snapshot() const noexcept { return m_snapshot; }
+	int fd() const noexcept { return m_fd_tcp; }
+	int fd_tcp() const noexcept { return m_fd_tcp; }
+	int fd_tcp6() const noexcept { return m_fd_tcp6; }
 };
 
 }  // namespace telemetry

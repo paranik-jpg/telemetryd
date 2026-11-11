@@ -73,4 +73,16 @@ target_link_libraries(test_tcp PRIVATE
 
 add_test(NAME test_tcp COMMAND test_tcp)
 
+# ==============================================================================
+# Snapshot Registry & Sampling Engine Concurrency Target
+# ==============================================================================
+
+add_executable(test_snapshot test_snapshot.cpp)
+target_link_libraries(test_snapshot PRIVATE
+    telemetry_test_support
+)
+
+add_test(NAME test_snapshot COMMAND test_snapshot)
+
+
 
