@@ -84,5 +84,16 @@ target_link_libraries(test_snapshot PRIVATE
 
 add_test(NAME test_snapshot COMMAND test_snapshot)
 
+# ==============================================================================
+# Prometheus HTTP Server & Metrics Formatter Target
+# ==============================================================================
+
+add_executable(test_server test_server.cpp)
+target_link_libraries(test_server PRIVATE
+    telemetry_test_support
+)
+
+add_test(NAME test_server COMMAND test_server)
+
 
 
