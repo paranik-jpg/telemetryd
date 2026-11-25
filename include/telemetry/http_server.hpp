@@ -182,28 +182,40 @@ class HttpServer {
 		// Read until at least the HTTP request line delimiter ("\r\n") arrives,
 		// or until the 500ms timeout ceiling expires (evicting Slowloris clients).
 		while(bytes_recv < request_buf.size()) {
+			// First attempt non-blocking recv directly (fast path for already arriving requests)
+			// MSG_DONTWAIT tells the kernel: "If bytes are already here, give them to me right now!
+			const ssize_t n = ::recv(client_fd, request_buf.data() + bytes_recv, request_buf.size() - bytes_recv, MSG_DONTWAIT);
+			if(n > 0) {
+				bytes_recv += static_cast<std::size_t>(n);
+				const std::string_view current_data(request_buf.data(), bytes_recv);
+				if(current_data.find("\r\n") != std::string_view::npos) {
+					break;	// Request line received
+				}
+				continue;
+			}
+
+			if(n == 0) {
+				// Peer closed connection
+				::close(client_fd);
+				return;
+			}
+
+			// n < 0: if not EAGAIN/EWOULDBLOCK, report error and close
+			if(errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
+				::close(client_fd);
+				return;
+			}
+
+			// Slow path: no data immediately ready, poll with 500ms timeout ceiling (Slowloris eviction)
 			struct pollfd pfd{};
 			pfd.fd = client_fd;
 			pfd.events = POLLIN;
 
-			const int pr = ::poll(&pfd, 1, 500);  // Strict 500ms timeout ceiling
+			const int pr = ::poll(&pfd, 1, 500);
 			if(pr <= 0) {
-				// Timeout (500ms elapsed without data) or poll error -> evict stalled socket
+				// Timeout or poll error -> evict stalled socket
 				::close(client_fd);
 				return;
-			}
-
-			const ssize_t n = ::recv(client_fd, request_buf.data() + bytes_recv, request_buf.size() - bytes_recv, MSG_DONTWAIT);
-			if(n <= 0) {
-				::close(client_fd);
-				return;
-			}
-
-			bytes_recv += static_cast<std::size_t>(n);
-
-			const std::string_view current_data(request_buf.data(), bytes_recv);
-			if(current_data.find("\r\n") != std::string_view::npos) {
-				break;	// Request line received
 			}
 		}
 

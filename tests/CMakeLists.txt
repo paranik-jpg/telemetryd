@@ -95,5 +95,15 @@ target_link_libraries(test_server PRIVATE
 
 add_test(NAME test_server COMMAND test_server)
 
+# ==============================================================================
+# Standalone Microbenchmark Target (Release Parser Performance)
+# ==============================================================================
+
+add_executable(bench_parsers bench_parsers.cpp)
+target_link_libraries(bench_parsers PRIVATE
+    telemetry_test_support
+)
+
+
 
 

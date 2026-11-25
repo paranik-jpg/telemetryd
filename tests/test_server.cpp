@@ -424,8 +424,12 @@ int main(int argc, char** argv) {
 
 	if(argc > 1 && std::string_view(argv[1]) == "--run-server") {
 		uint16_t port = 9100;
+		int sampling_interval_ms = 0; // 0 = static snapshot, >0 = background sampling thread
 		if(argc > 2) {
 			port = static_cast<uint16_t>(std::stoi(argv[2]));
+		}
+		if(argc > 3) {
+			sampling_interval_ms = std::stoi(argv[3]);
 		}
 		telemetry::SnapshotRegistry registry;
 		telemetry::SystemSnapshot snap{};
@@ -435,8 +439,31 @@ int main(int argc, char** argv) {
 		snap.tcp.state_counts[static_cast<std::size_t>(telemetry::TcpState::ESTABLISHED)] = 42;
 		registry.publish(snap);
 
+		// If sampling_interval_ms > 0, spawn sampling publisher thread to stress registry concurrent access
+		std::thread sampler_thread;
+		if(sampling_interval_ms > 0) {
+			sampler_thread = std::thread([&registry, sampling_interval_ms]() {
+				uint64_t seq = 2;
+				while(g_server_running.load()) {
+					telemetry::SystemSnapshot s{};
+					s.sequence_number = seq++;
+					// Some random data!
+					s.collection_duration_ns = 150000;
+					s.cpu.detected_cores = 4;
+					s.mem.mem_total = 16000000;
+					s.mem.mem_free = 8000000 + (seq % 1000);
+					s.tcp.state_counts[static_cast<std::size_t>(telemetry::TcpState::ESTABLISHED)] = 40 + (seq % 10);
+					registry.publish(s);
+					std::this_thread::sleep_for(std::chrono::milliseconds(sampling_interval_ms));
+				}
+			});
+		}
+
+		// Tell Linux: when this process receives SIGTERM or Ctrl+C (SIGINT),
+		// don't abruptly kill it; call our sigterm_handler function instead!
 		struct sigaction sa{};
 		sa.sa_handler = sigterm_handler;
+		// Ensure the mask is completely clean and clear
 		sigemptyset(&sa.sa_mask);
 		::sigaction(SIGTERM, &sa, nullptr);
 		::sigaction(SIGINT, &sa, nullptr);
@@ -445,11 +472,15 @@ int main(int argc, char** argv) {
 		server.start();
 		std::cout << "SERVER_READY:" << server.port() << std::endl;
 
+		// Sleep peacefully in a loop as long as g_server_running is true
 		while(g_server_running.load()) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 		}
 
 		server.stop();
+		if(sampler_thread.joinable()) {
+			sampler_thread.join();
+		}
 		return 0;
 	}
 
