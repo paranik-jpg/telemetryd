@@ -82,14 +82,14 @@ flowchart TD
     end
 
     K1 -->|"::pread() / ::read() (Zero VFS path walk)"| F1
-    F1 -->|Raw bytes| S1
-    S1 -->|In-place zero-copy slicing| P1
-    P1 -->|Numeric extraction (No sscanf)| SNAP
-    SNAP -->|Lock-free publish| REG
-    REG -->|Lock-free acquire copy| FMT
-    FMT -->|std::to_chars fixed 2-dec precision| SCRATCH
-    SCRATCH -->|Zero-copy chunked flush| WIRE
-    WIRE -->|Wire frame delivery| K2
+    F1 -->|"Raw bytes"| S1
+    S1 -->|"In-place zero-copy slicing"| P1
+    P1 -->|"Numeric extraction (No sscanf)"| SNAP
+    SNAP -->|"Lock-free publish"| REG
+    REG -->|"Lock-free acquire copy"| FMT
+    FMT -->|"std::to_chars fixed 2-dec precision"| SCRATCH
+    SCRATCH -->|"Zero-copy chunked flush"| WIRE
+    WIRE -->|"Wire frame delivery"| K2
 ```
 
 ---
